@@ -22,6 +22,7 @@ package graphite
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/intelsdi-x/snap-plugin-lib-go/v1/plugin"
 	"github.com/marpaia/graphite-golang"
@@ -30,7 +31,7 @@ import (
 
 const (
 	Name    = "graphite"
-	Version = 7
+	Version = 8
 )
 
 var (
@@ -70,9 +71,19 @@ func (f *GraphitePublisher) Publish(metrics []plugin.Metric, cfg plugin.Config) 
 	if err != nil {
 		pre = ""
 	}
+	timeout, err := cfg.GetInt("timeout")
+	if err != nil {
+		timeout = 20
+	}
 
-	logger.Debug("Attempting to connect to %s:%d", server, port)
-	gite, err := graphite.NewGraphiteWithMetricPrefix(server, int(port), pre)
+	logger.Debug("Attempting to connect to %s:%d with timeout %d", server, port, timeout)
+	gite := graphite.Graphite{
+		Host:    server,
+		Port:    int(port),
+		Prefix:  pre,
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+	err = gite.Connect()
 	if err != nil {
 		logger.Errorf("Error Connecting to graphite at %s:%d. Error: %v", server, port, err)
 		return fmt.Errorf("Error Connecting to graphite at %s:%d. Error: %v", server, port, err)
@@ -118,6 +129,7 @@ func (f *GraphitePublisher) GetConfigPolicy() (plugin.ConfigPolicy, error) {
 	policy.AddNewStringRule([]string{""}, "prefix_tags", false, plugin.SetDefaultString("plugin_running_on"))
 	policy.AddNewStringRule([]string{""}, "prefix", false)
 	policy.AddNewStringRule([]string{""}, "log-level", false)
+	policy.AddNewIntRule([]string{""}, "timeout", false, plugin.SetDefaultInt(5))
 
 	return *policy, nil
 }
